@@ -2,16 +2,16 @@
 
 |  |  |
 |---|---|
-| **CVE ID** | **Pending** — a CVE was requested via GitHub's CNA at publication; the identifier has not been assigned yet |
+| **CVE ID** | **Pending** — requested via GitHub's CNA when the advisory was published; not yet assigned as of 2026-07-23 |
 | **Advisory** | [GHSA-wj85-328x-ww6r](https://github.com/ZoeyVid/NPMplus/security/advisories/GHSA-wj85-328x-ww6r) (published 2026-07-23) |
 | **Product** | [ZoeyVid/NPMplus](https://github.com/ZoeyVid/NPMplus) — an nginx-proxy-manager fork |
 | **Type** | CWE-22 — Improper Limitation of a Pathname to a Restricted Directory (Path Traversal) |
 | **Affected** | `2025-12-29-b1` ≤ version < `2026-07-23-r1` |
 | **Fixed in** | `2026-07-23-r1` |
-| **Severity** | Critical — CVSS 3.1 **10.0** (`AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N`) as scored in the published advisory. See [Scoring](#scoring) for the more conservative 9.3 I argued in my report. |
+| **Severity** | Critical — CVSS 3.1 **10.0** (`CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N`) as scored by the maintainer in the published advisory. See [Scoring](#scoring) for the more conservative 9.3 I argued in my report. |
 | **Reporter** | Lyris Vale ([@ValeLyris](https://github.com/ValeLyris)) |
 
-> **CVE number pending.** The maintainer requested a CVE through GitHub when publishing the advisory; GitHub's CNA has not yet assigned the identifier. This page will be updated with the CVE ID once it is issued.
+> **CVE number pending.** The maintainer requested a CVE through GitHub when publishing the advisory; as of 2026-07-23 GitHub's CNA has not yet assigned the identifier. This page will be updated once it is issued.
 
 ## Summary
 
@@ -50,7 +50,7 @@ Why it is reliably unauthenticated:
 - `start.sh` runs `mkdir -vp /data/npmplus/gravatar` on every boot, so the alias directory always exists and the `../` always resolves.
 - The high-value files sit exactly one level up, so a single traversal reaches all of them. Deeper attempts (`../../etc/passwd`, `..%2f…`) are collapsed to 404, but one level is enough.
 
-A second instance of the same bug class exists in `backend/templates/proxy_host.conf` (an Anubis static `alias`), triggered on any proxy host with Anubis enabled.
+A second instance of the same bug class exists in `backend/templates/proxy_host.conf` (an Anubis static `alias`), reachable on any proxy host that has Anubis enabled. I identified that one by config review and did **not** separately exploit it in the lab; the maintainer applied the same trailing-slash fix there in `2026-07-23-r1`.
 
 **Not affected:** upstream `jc21/nginx-proxy-manager` links avatars straight to gravatar.com and ships no local `/images/gravatar` alias. This is specific to NPMplus's gravatar-cache feature.
 
@@ -65,6 +65,8 @@ A single unauthenticated `GET`, no credentials, discloses the `/data/npmplus/` s
 **Not claimed (in the interest of honesty):** session forgery, auth bypass, and RCE via the leaked JWT key are *not* claimed. The release image signs its `__Host-Http-token` cookie with a per-process random secret (`cookieParser(process.env.COOKIE_SECRET || crypto.randomBytes(16)…)`), so the JWT key alone does not yield a usable session unless the operator set a weak or known `COOKIE_SECRET`. Offline cracking of the bcrypt (cost 13) hashes is likewise not assumed.
 
 ## Proof of concept
+
+> The maintainer published my full report — this PoC and all eight evidence screenshots included — in the advisory itself, after the fix had shipped. Nothing on this page is disclosed ahead of upstream.
 
 Full script in [`poc/poc.sh`](./poc/poc.sh). All requests carry no cookie or token. Note `--path-as-is` — curl and browsers otherwise fold `gravatar../` back to `/images/`.
 
@@ -81,7 +83,7 @@ curl -sk --path-as-is 'https://<HOST>:8081/images/gravatar../database.sqlite' -o
 curl -sk -o /dev/null -w '%{http_code}\n' 'https://<HOST>:8081/images/gravatar/'   # → 403
 ```
 
-Confirmed on the affected `ghcr.io/zoeyvid/npmplus` image (version 2.15.1, container `nginx/1.31.3`) and independently on stock `nginx/1.24.0` with the exact config lines.
+Confirmed on the affected build `2026-07-15-r1` of `ghcr.io/zoeyvid/npmplus` — the UI reports its version string as `2026-07-15-r1-f8f7cd0-2.15.1` (app version 2.15.1), which sits inside the affected range above — running container `nginx/1.31.3`, and independently on stock `nginx/1.24.0` with the exact config lines.
 
 ## Evidence
 
@@ -131,7 +133,7 @@ Defense in depth: mark the static avatar location `internal;`, or do not co-loca
 
 ## Scoring
 
-The published advisory carries **CVSS 3.1 10.0** (`AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N`), set by the maintainer. My own report scored it more conservatively at **9.3** (`AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:L/A:N`) — `I:L` for the ability to issue rogue certificates / alter DNS via the leaked provider credential, rather than `I:H`. Either way, the read primitive alone is a High (floor 7.5, `S:U/C:H/I:N/A:N`); the credential disclosure that crosses into a separate security authority (the victim's DNS provider) is what makes Scope **Changed**.
+The published advisory carries **CVSS 3.1 10.0** (`CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N`), set by the maintainer. My own report scored it more conservatively at **9.3** (`CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:L/A:N`) — `I:L` for the ability to issue rogue certificates / alter DNS via the leaked provider credential, rather than `I:H`. Either way, the read primitive alone is a High (floor 7.5, `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N`); the credential disclosure that crosses into a separate security authority (the victim's DNS provider) is what makes Scope **Changed**.
 
 ## Disclosure timeline
 

@@ -1,14 +1,29 @@
-# Never commit real or lab secrets / dumped data
+# Never commit real or lab secrets / dumped data.
+# Keep these patterns extension-scoped: evidence screenshots such as
+# 04-stolen-db-user-table-admin.png must stay committable.
 *.sqlite
 *.sqlite3
+*.db
 keys.json
 keys-ec.json
-database-*.sqlite
-stolen-*
+stolen-*.json
+stolen-*.sqlite
+stolen-*.txt
 *.pem
 *.key
 *.p12
 *.pfx
+*.crt
+*.csr
+*.jwt
+
+# Capture / tooling artefacts (Burp, browsers, shells)
+*.har
+*.burp
+cookies.txt
+*.log
+.env
+*.env
 
 # OS / editor cruft
 .DS_Store

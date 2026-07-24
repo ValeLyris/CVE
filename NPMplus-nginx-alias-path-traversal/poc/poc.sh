@@ -13,7 +13,7 @@ set -euo pipefail
 HOST="${1:-127.0.0.1:8081}"
 
 # 0. (setup) run the vulnerable image and finish first-boot setup so /data/npmplus is populated:
-#      docker run -d --name npmplus -p 8081:81 ghcr.io/zoeyvid/npmplus:<affected-tag>
+#      docker run -d --name npmplus -p 8081:81 ghcr.io/zoeyvid/npmplus:2026-07-15-r1   # an affected build
 #      then open https://${HOST}/ and complete the setup wizard (unrelated to the bug).
 
 echo "[*] 1) steal the JWT signing private key (keys.json)"
