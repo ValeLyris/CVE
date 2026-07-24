@@ -18,6 +18,13 @@ Both WordPress CVEs were assigned by the WPScan CNA and their cve.org records we
 
 I report privately to a maintainer or a CNA first and hold public exploitation detail until a fix is available (or until the platform's coordinated-disclosure date), whichever the program requires. Proof-of-concept code here is for reproducing a finding against an instance you own or are authorised to test; it is provided as-is, with no warranty.
 
+## Licence
+
+- **Code** — everything under `*/poc/` is [MIT](./LICENSE).
+- **Write-ups and evidence** — the prose, analysis, and screenshots are [CC BY 4.0](./LICENSE-docs).
+
+Copyright © 2026 Lyris Vale. Both licences require the attribution to stay with the material: credit Lyris Vale ([@ValeLyris](https://github.com/ValeLyris)) and link back.
+
 ---
 
 Maintained by Lyris Vale · GitHub [@ValeLyris](https://github.com/ValeLyris)
