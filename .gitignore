@@ -1,0 +1,15 @@
+# Never commit real or lab secrets / dumped data
+*.sqlite
+*.sqlite3
+keys.json
+keys-ec.json
+database-*.sqlite
+stolen-*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db

