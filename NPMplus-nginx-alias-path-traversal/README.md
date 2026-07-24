@@ -7,7 +7,7 @@
 | **Product** | [ZoeyVid/NPMplus](https://github.com/ZoeyVid/NPMplus) — an nginx-proxy-manager fork |
 | **Type** | CWE-22 — Improper Limitation of a Pathname to a Restricted Directory (Path Traversal) |
 | **Affected** | `2025-12-29-b1` ≤ version < `2026-07-23-r1` |
-| **Fixed in** | `2026-07-23-r1` (release 2.15.1) |
+| **Fixed in** | `2026-07-23-r1` |
 | **Severity** | Critical — CVSS 3.1 **10.0** (`AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N`) as scored in the published advisory. See [Scoring](#scoring) for the more conservative 9.3 I argued in my report. |
 | **Reporter** | Lyris Vale ([@ValeLyris](https://github.com/ValeLyris)) |
 
@@ -81,7 +81,7 @@ curl -sk --path-as-is 'https://<HOST>:8081/images/gravatar../database.sqlite' -o
 curl -sk -o /dev/null -w '%{http_code}\n' 'https://<HOST>:8081/images/gravatar/'   # → 403
 ```
 
-Confirmed on `ghcr.io/zoeyvid/npmplus` v2.15.1 (container `nginx/1.31.3`) and on stock `nginx/1.24.0` with the exact config lines.
+Confirmed on the affected `ghcr.io/zoeyvid/npmplus` image (version 2.15.1, container `nginx/1.31.3`) and independently on stock `nginx/1.24.0` with the exact config lines.
 
 ## Evidence
 
@@ -138,7 +138,7 @@ The published advisory carries **CVSS 3.1 10.0** (`AV:N/AC:L/PR:N/UI:N/S:C/C:H/I
 All on 2026-07-23:
 
 - Reported privately to the maintainer.
-- Maintainer accepted, released the fix `2026-07-23-r1`, published [GHSA-wj85-328x-ww6r](https://github.com/ZoeyVid/NPMplus/security/advisories/GHSA-wj85-328x-ww6r), and opened discussions [#3626](https://github.com/ZoeyVid/NPMplus/discussions/3626) / [#3627](https://github.com/ZoeyVid/NPMplus/discussions/3627) explaining the issue.
+- Maintainer accepted, released the fix `2026-07-23-r1`, published [GHSA-wj85-328x-ww6r](https://github.com/ZoeyVid/NPMplus/security/advisories/GHSA-wj85-328x-ww6r), and opened discussions [#3626](https://github.com/ZoeyVid/NPMplus/discussions/3626) (explaining the issue) and [#3627](https://github.com/ZoeyVid/NPMplus/discussions/3627) ("2026-07-23-r1 — UPDATE ASAP").
 - Reporter credit accepted; CVE requested via GitHub (pending).
 
 ## Scope & testing notes
