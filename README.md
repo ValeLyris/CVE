@@ -9,8 +9,8 @@ CVE identifiers are added as the relevant CNA assigns them. Some entries publish
 | # | CVE | Product | Type | Severity | Status | Details |
 |---|-----|---------|------|----------|--------|---------|
 | 1 | *pending* · [GHSA-wj85-328x-ww6r](https://github.com/ZoeyVid/NPMplus/security/advisories/GHSA-wj85-328x-ww6r) | [ZoeyVid/NPMplus](https://github.com/ZoeyVid/NPMplus) | Unauth path traversal (CWE-22) | Critical | Fixed in `2026-07-23-r1`; CVE requested | [→](./NPMplus-nginx-alias-path-traversal/) |
-| 2 | [CVE-2026-14300](https://www.cve.org/CVERecord?id=CVE-2026-14300) | miniOrange Social Login and Register | Unauth account takeover (CWE-287) | High · 8.1 | Fixed in 7.8.0; PoC embargoed to 2026-08-08 | [→](./CVE-2026-14300-miniOrange-social-login-ato/) |
-| 3 | [CVE-2026-14313](https://www.cve.org/CVERecord?id=CVE-2026-14313) | PeproDev WooCommerce Receipt Uploader | Unauth IDOR (CWE-639/862) | Medium · 5.3 | No fix yet; PoC embargoed to 2026-08-12 | [→](./CVE-2026-14313-peprodev-receipt-uploader-idor/) |
+| 2 | [CVE-2026-14300](https://www.cve.org/CVERecord?id=CVE-2026-14300) | WordPress · miniOrange Social Login and Register | Unauth account takeover (CWE-287) | High · 8.1 | Fixed in 7.8.0; PoC embargoed to 2026-08-08 | [→](./CVE-2026-14300-miniOrange-social-login-ato/) |
+| 3 | [CVE-2026-14313](https://www.cve.org/CVERecord?id=CVE-2026-14313) | WordPress · PeproDev WooCommerce Receipt Uploader | Unauth IDOR (CWE-639/862) | Medium · 5.3 | No fix yet; PoC embargoed to 2026-08-12 | [→](./CVE-2026-14313-peprodev-receipt-uploader-idor/) |
 
 ## Disclosure approach
 
