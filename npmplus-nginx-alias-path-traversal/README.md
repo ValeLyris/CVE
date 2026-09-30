@@ -79,7 +79,9 @@ The maintainer's [impact analysis](https://github.com/ZoeyVid/NPMplus/discussion
 
 Full script in [`poc/poc.sh`](./poc/poc.sh). All requests carry no cookie or token. `--path-as-is` preserves the request target exactly; the required literal prefix is `/images/gravatar../`.
 
-The script checks response content and status without printing secret values. By default the key response stays in memory and the database probe requests only its 16-byte header; it rejects a larger database response if the server ignores the range. Exit `1` means a private-key marker or SQLite header was disclosed, `0` means neither file was disclosed at the tested endpoint (both probes returned `403` or `404`), and `2` means the result is inconclusive. A blocked response does not by itself prove that the installed build is patched. `--dump DIR` explicitly downloads full copies and must be treated as sensitive evidence.
+The original lab evidence downloaded the **whole** database: the Burp response shows `Content-Length: 110592`; a retained lab database copy was independently measured at **110592 bytes** with a valid SQLite header; and the SQLite browser screenshots show readable `user` and `auth` tables. The `200` status accompanies that evidence; it is not the proof on its own.
+
+The separate [`poc/poc.sh`](./poc/poc.sh) script is a bounded check for an operator. It examines response content without printing secrets and requests only the database's 16-byte SQLite header by default; it does not reproduce the full-file size comparison above. Exit `1` means a private-key marker or SQLite header was disclosed, `0` means neither file was disclosed at the tested endpoint (both probes returned `403` or `404`), and `2` means the result is inconclusive. A blocked response does not by itself prove that the installed build is patched. `--dump DIR` explicitly downloads full copies and must be treated as sensitive evidence.
 
 ```bash
 # steal the JWT signing private key
@@ -88,7 +90,8 @@ curl -sk --path-as-is 'https://<HOST>:8081/images/gravatar../keys.json'
 
 # exfiltrate the whole database
 curl -sk --path-as-is 'https://<HOST>:8081/images/gravatar../database.sqlite' -o database.sqlite
-#   → 200, ~110 KB SQLite; admin hashes + certificate.meta (DNS token in cleartext)
+#   → Content-Length: 110592; retained lab DB copy: 110592 bytes, SQLite format 3
+#      user/auth tables and certificate.meta verified in the downloaded file
 
 # control: the alias root is not directory-listable, proving traversal (not public exposure)
 curl -sk -o /dev/null -w '%{http_code}\n' 'https://<HOST>:8081/images/gravatar/'   # → 403
@@ -108,9 +111,9 @@ All requests unauthenticated (no cookie or token). Click any screenshot for full
 
 [![Burp Repeater: GET /images/gravatar../keys.json with no Cookie header returns 200 and a PEM-encoded private key](./evidence/02-burp-unauth-traversal-keys.json-privatekey.png)](./evidence/02-burp-unauth-traversal-keys.json-privatekey.png)
 
-**3 — Unauthenticated traversal downloads `database.sqlite` (200, 110592 bytes)**
+**3 — Unauthenticated traversal downloads `database.sqlite` (`Content-Length: 110592`, matching a retained lab database copy)**
 
-[![Burp Repeater: GET /images/gravatar../database.sqlite with no Cookie header returns 200 and a 110592-byte SQLite file](./evidence/03-burp-unauth-traversal-database.sqlite-200-110592.png)](./evidence/03-burp-unauth-traversal-database.sqlite-200-110592.png)
+[![Burp Repeater: unauthenticated database.sqlite request showing Content-Length 110592 and application/octet-stream; subsequent screenshots show the downloaded SQLite tables](./evidence/03-burp-unauth-traversal-database.sqlite-200-110592.png)](./evidence/03-burp-unauth-traversal-database.sqlite-200-110592.png)
 
 **4 — The retrieved DB's `user` table (admin)**
 
@@ -161,7 +164,7 @@ curl -sk -o /dev/null -w '%{http_code}\n' --path-as-is \
   'https://<YOUR-HOST>:81/images/gravatar../keys.json'
 ```
 
-The status is only a first check. `200` can be SPA HTML or another response rather than the key, and `403` / `404` can come from access controls or an intermediate proxy. [`poc/poc.sh`](./poc/poc.sh) checks for a private-key marker and SQLite header and keeps request failures or unexpected responses inconclusive. Confirm the running image tag and regenerated configuration as well.
+The original database finding rests on the `110592`-byte response length matching the downloaded file and on the readable SQLite tables, not on the status alone. [`poc/poc.sh`](./poc/poc.sh) instead checks a private-key marker and SQLite header without downloading the full database by default. `403` / `404` can come from access controls or an intermediate proxy; confirm the running image tag and regenerated configuration as well.
 
 Updating closes the read; it does not undo one. The read needed no directory listing — the alias root returns 403, as control 6 shows — but the filenames under `/data/npmplus/` are fixed and public in the repository, so guessing them was never a barrier. After updating to a supported release containing the `2026-07-23-r1` fix, if an affected path was reachable by untrusted users:
 
