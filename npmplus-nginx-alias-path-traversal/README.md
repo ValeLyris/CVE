@@ -10,7 +10,7 @@ A single unauthenticated `GET` reads the backend JWT signing key, the whole appl
 | **Type** | CWE-22 — Improper Limitation of a Pathname to a Restricted Directory (Path Traversal) |
 | **Affected** | `2025-12-29-b1` ≤ version < `2026-07-23-r1` |
 | **Fixed in** | `2026-07-23-r1` |
-| **Severity** | Critical — CVSS 3.1 **10.0** (`CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N`), as scored by the maintainer in the published advisory. See [Scoring](#scoring) for the more conservative 9.3 I argued in my report. |
+| **Severity** | **10.0 Critical** — CVSS 3.1 (`CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N`), as published in the [maintainer's advisory](https://github.com/ZoeyVid/NPMplus/security/advisories/GHSA-wj85-328x-ww6r). |
 | **Disclosed** | 2026-07-23 (GitHub Security Advisory) |
 | **Reporter** | Lyris Vale ([@ValeLyris](https://github.com/ValeLyris)) |
 
@@ -176,7 +176,7 @@ The maintainer also recommends re-enrolling TOTP, replacing older Basic Auth cre
 
 ## Scoring
 
-The published advisory carries **CVSS 3.1 10.0** (`CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N`), set by the maintainer. My own report scored it more conservatively at **9.3** (`CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:L/A:N`) — `I:L` for the ability to issue rogue certificates / alter DNS via the leaked provider credential, rather than `I:H`. Either way, the read primitive alone is a High (floor 7.5, `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N`); the credential disclosure that crosses into a separate security authority (the victim's DNS provider) is what makes Scope **Changed**.
+The [published advisory](https://github.com/ZoeyVid/NPMplus/security/advisories/GHSA-wj85-328x-ww6r) rates this finding **10.0 Critical** under CVSS 3.1 (`CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:H/A:N`). This repository uses that published score. The vector reflects unauthenticated network access, disclosure of application secrets and DNS-provider credentials, and the resulting impact across security boundaries.
 
 ## Disclosure timeline
 
